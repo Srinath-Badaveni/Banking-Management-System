@@ -15,18 +15,14 @@ import java.sql.SQLException;
 public class DatabaseConnection {
 
     // ── Configuration ─────────────────────────────────────────────────────────
-    private static final String DB_HOST     = getEnvOrDefault("DB_HOST", "localhost");
-    private static final String DB_PORT     = getEnvOrDefault("DB_PORT", "3306");
-    private static final String DB_NAME     = getEnvOrDefault("DB_NAME", "banking_db");
-    private static final String DB_USER     = getEnvOrDefault("DB_USER", "root");
-    private static final String DB_PASSWORD = getEnvOrDefault("DB_PASSWORD", "your_password");
-    private static final String DB_SSL      = getEnvOrDefault("DB_SSL", "false");
+    private static final String DB_HOST = getEnvOrDefault("DB_HOST", "localhost");
+    private static final String DB_PORT = getEnvOrDefault("DB_PORT", "3306");
+    private static final String DB_NAME = getEnvOrDefault("DB_NAME", "banking_db");
+    private static final String DB_USER = getEnvOrDefault("DB_USER", "root");
+    private static final String DB_PASSWORD = getEnvOrDefault("DB_PASSWORD", "root123");
+    private static final String DB_SSL = getEnvOrDefault("DB_SSL", "false");
 
-    private static final String DB_URL      = "jdbc:mysql://" + DB_HOST + ":" + DB_PORT + "/" + DB_NAME
-                                            + "?useSSL=" + DB_SSL
-                                            + "&serverTimezone=Asia/Kolkata"
-                                            + "&allowPublicKeyRetrieval=true"
-                                            + "&autoReconnect=true";
+    private static final String DB_URL = "jdbc:mysql://localhost:3306/banking_db?useSSL=false&serverTimezone=Asia/Kolkata&allowPublicKeyRetrieval=true&autoReconnect=true";
 
     private static final String DRIVER_CLASS = "com.mysql.cj.jdbc.Driver";
 
@@ -39,7 +35,8 @@ public class DatabaseConnection {
     private static Connection connection = null;
 
     /** Private constructor prevents direct instantiation. */
-    private DatabaseConnection() {}
+    private DatabaseConnection() {
+    }
 
     // ── Public API ────────────────────────────────────────────────────────────
 
@@ -54,14 +51,15 @@ public class DatabaseConnection {
             if (connection == null || connection.isClosed()) {
                 Class.forName(DRIVER_CLASS);
                 connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
-                connection.setAutoCommit(true);   // explicit transactions managed per service
+                connection.setAutoCommit(true); // explicit transactions managed per service
                 System.out.println("[DB] Connection established successfully.");
             }
         } catch (ClassNotFoundException e) {
             throw new SQLException(
-                "MySQL JDBC driver not found on classpath. " +
-                "Add mysql-connector-java-*.jar to your build path.\n" +
-                "Cause: " + e.getMessage(), e);
+                    "MySQL JDBC driver not found on classpath. " +
+                            "Add mysql-connector-java-*.jar to your build path.\n" +
+                            "Cause: " + e.getMessage(),
+                    e);
         }
         return connection;
     }

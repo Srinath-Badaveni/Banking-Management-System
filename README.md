@@ -95,7 +95,7 @@ This produces `target/banking-system.jar` (fat JAR with MySQL connector bundled)
 ### Step 5 — Run the application
 
 ```bash
-java -jar target/banking-system.jar
+java -cp "bin;C:\Users\Srinath\.m2\repository\com\mysql\mysql-connector-j\8.0.33\mysql-connector-j-8.0.33.jar" com.bank.main.BankingApp
 ```
 
 Or run directly with Maven:

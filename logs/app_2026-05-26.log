@@ -1,0 +1,26 @@
+May 26, 2026 9:13:32 PM com.bank.utils.FileLogger logAudit
+INFO: [AUDIT] 2026-05-26 21:13:32 | Event=CREATE_CUSTOMER      | Account=CUST000004     | Name=Srinath
+May 26, 2026 9:13:32 PM com.bank.utils.FileLogger logAudit
+INFO: [AUDIT] 2026-05-26 21:13:32 | Event=CREATE_ACCOUNT       | Account=ACC000000004   | Type=SAVINGS | InitialBalance=2000
+May 26, 2026 9:13:32 PM com.bank.utils.FileLogger logInfo
+INFO: New account created: ACC000000004 for Srinath
+May 26, 2026 9:13:48 PM com.bank.utils.FileLogger logWarning
+WARNING: Failed login attempt for account: ACC000000004
+May 26, 2026 9:13:57 PM com.bank.utils.FileLogger logAudit
+INFO: [AUDIT] 2026-05-26 21:13:57 | Event=LOGIN                | Account=ACC000000004   | Authentication successful
+May 26, 2026 9:13:57 PM com.bank.utils.FileLogger logAudit
+INFO: [AUDIT] 2026-05-26 21:13:57 | Event=LOGIN_SUCCESS        | Account=ACC000000004   | User=Srinath
+May 26, 2026 9:14:28 PM com.bank.utils.FileLogger logInfo
+INFO: Withdrawal: acc=ACC000000004 amt=342
+May 26, 2026 9:14:39 PM com.bank.utils.FileLogger logInfo
+INFO: Deposit: acc=ACC000000004 amt=2334
+May 26, 2026 9:15:06 PM com.bank.utils.FileLogger logAudit
+INFO: [AUDIT] 2026-05-26 21:15:06 | Event=LOGOUT               | Account=ACC000000004   | Session ended
+May 26, 2026 9:15:08 PM com.bank.utils.FileLogger logInfo
+INFO: Application exited normally.
+May 26, 2026 9:15:33 PM com.bank.utils.FileLogger logInfo
+INFO: Application exited normally.
+May 26, 2026 9:16:09 PM com.bank.utils.FileLogger logInfo
+INFO: Application exited normally.
+May 26, 2026 9:18:09 PM com.bank.utils.FileLogger logInfo
+INFO: Application exited normally.
