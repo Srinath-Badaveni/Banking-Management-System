@@ -1,0 +1,229 @@
+# Comprehensive Backend Architecture & Concepts Guide
+
+This document breaks down the entire Spring Boot backend we built for the **NexusBank Portal**. It is designed to give you a clear, A-Z understanding of how the API flows, the Spring Boot mechanics behind the scenes, and the core Java & Object-Oriented Programming (OOP) concepts applied in the codebase.
+
+---
+
+## 1. Overall Application Architecture (N-Tier)
+Spring Boot applications traditionally follow a **3-Tier Architecture**. We strictly followed this pattern:
+
+```mermaid
+graph TD
+    Client[React Frontend / Mobile] <-->|HTTP JSON| Controller[BankController]
+    
+    subgraph Spring Boot Application
+        Controller <-->|DTO / Models| Service[BankService]
+        Service <-->|Entities| Repository[(Data Access Layer)]
+        Repository <-->|Hibernate / JPA| Entities[Models: Customer, Account, Transaction]
+    end
+    
+    Repository <-->|SQL Queries| DB[(MySQL Database)]
+    
+    style Controller fill:#f9f,stroke:#333,stroke-width:2px
+    style Service fill:#bbf,stroke:#333,stroke-width:2px
+    style Repository fill:#bfb,stroke:#333,stroke-width:2px
+```
+
+1. **Controllers (`BankController.java`)**: The "Presentation" tier. It listens for HTTP requests from the React frontend, extracts the data, passes it to the Service layer, and sends back an HTTP response (JSON).
+2. **Services (`BankService.java`)**: The "Business Logic" tier. This is where the brain of the application lives. It validates rules (e.g., checking if funds are sufficient), generates IDs, and calls the Database layer.
+3. **Repositories (`CustomerRepository.java`, etc.)**: The "Data Access" tier. It communicates directly with MySQL.
+4. **Models / Entities (`Account.java`, etc.)**: The shape of the data that moves between the layers and maps directly to the MySQL tables.
+
+---
+
+## 2. API Endpoints & Request Flow Breakdown
+
+Here is a detailed look at how data flows from the moment a user clicks a button on the React frontend to the database, complete with sequence diagrams.
+
+### 👥 Customer Endpoints
+
+#### `GET /api/customers`
+*   **Goal**: Fetch all customers.
+
+```mermaid
+sequenceDiagram
+    participant Frontend
+    participant Controller as BankController
+    participant Service as BankService
+    participant Repo as CustomerRepository
+    participant DB as MySQL
+    
+    Frontend->>Controller: GET /api/customers
+    Controller->>Service: getAllCustomers()
+    Service->>Repo: findAll()
+    Repo->>DB: SELECT * FROM customers
+    DB-->>Repo: ResultSet (Rows)
+    Repo-->>Service: List<Customer>
+    Service-->>Controller: List<Customer>
+    Controller-->>Frontend: JSON Array of Customers (HTTP 200)
+```
+
+#### `GET /api/customers/{id}`
+*   **Goal**: Fetch a single customer.
+
+```mermaid
+sequenceDiagram
+    participant Controller as BankController
+    participant Service as BankService
+    participant Repo as CustomerRepository
+    
+    Controller->>Service: getCustomer("CUST001")
+    Service->>Repo: findById("CUST001")
+    alt Customer Exists
+        Repo-->>Service: Optional[Customer]
+        Service-->>Controller: Customer
+    else Customer Not Found
+        Repo-->>Service: Optional.empty()
+        Service--xController: throws RuntimeException
+    end
+```
+
+#### `POST /api/customers`
+*   **Goal**: Create a new customer.
+
+```mermaid
+sequenceDiagram
+    participant Controller as BankController
+    participant Service as BankService
+    participant UUID as UUID Generator
+    participant Repo as CustomerRepository
+    
+    Controller->>Service: createCustomer(CustomerData)
+    Service->>UUID: generate random string
+    UUID-->>Service: "ABCD1234"
+    Service->>Service: customer.setCustomerId("CUST" + "ABCD1234")
+    Service->>Repo: save(customer)
+    Repo-->>Service: Saved Customer Entity
+    Service-->>Controller: Saved Customer JSON
+```
+
+### 🏦 Account Endpoints
+
+#### `GET /api/customers/{id}/accounts`
+*   **Goal**: Load all accounts owned by a specific customer.
+
+```mermaid
+sequenceDiagram
+    participant Frontend
+    participant Controller as BankController
+    participant Service as BankService
+    participant Repo as AccountRepository
+    
+    Frontend->>Controller: GET /api/customers/CUST001/accounts
+    Controller->>Service: getAccountsForCustomer("CUST001")
+    Note over Repo: Uses Spring Data Method Name Parsing
+    Service->>Repo: findByCustomerCustomerId("CUST001")
+    Repo-->>Service: List<Account>
+    Service-->>Controller: List<Account>
+    Controller-->>Frontend: JSON Array (Lazy Customer Ignored)
+```
+
+#### `POST /api/customers/{id}/accounts`
+*   **Goal**: Open a new account.
+
+```mermaid
+sequenceDiagram
+    participant Controller as BankController
+    participant Service as BankService
+    participant CustRepo as CustomerRepository
+    participant AccRepo as AccountRepository
+    
+    Controller->>Service: createAccount("CUST001", SAVINGS, 500)
+    Service->>CustRepo: findById("CUST001")
+    CustRepo-->>Service: Customer Entity
+    Service->>Service: Instantiate new Account
+    Service->>Service: Set auto-generated Account Number
+    Service->>Service: Link Customer (account.setCustomer(customer))
+    Service->>AccRepo: save(account)
+    AccRepo-->>Service: Saved Account
+    Service-->>Controller: Account JSON
+```
+
+### 💸 Transaction Endpoints
+
+#### `POST /api/accounts/{accountNumber}/transactions`
+*   **Goal**: Deposit or Withdraw money safely.
+*   **Flow (The most complex)**:
+
+```mermaid
+sequenceDiagram
+    participant Frontend
+    participant Controller as BankController
+    participant Service as BankService
+    participant AccRepo as AccountRepository
+    participant TxnRepo as TransactionRepository
+    
+    Note over Service: @Transactional Scope Starts
+    Frontend->>Controller: POST {type: "WITHDRAWAL", amount: 100}
+    Controller->>Service: performTransaction("ACC001", 100, WITHDRAWAL)
+    
+    Service->>AccRepo: findById("ACC001")
+    AccRepo-->>Service: Account Entity (Balance: 50)
+    
+    alt Balance < Amount (Insufficient Funds)
+        Service--xController: throw RuntimeException
+        Note over Service: Transaction Rolled Back automatically
+    else Balance >= Amount
+        Service->>Service: newBalance = 50 - 100? No, wait!
+        Service->>Service: account.setBalance(newBalance)
+        Service->>AccRepo: save(account)
+        
+        Service->>Service: new Transaction()
+        Service->>Service: Set amount, type, timestamp
+        Service->>TxnRepo: save(transaction)
+    end
+    Note over Service: @Transactional Scope Ends (Commit to DB)
+    
+    Service-->>Controller: Saved Transaction Details
+    Controller-->>Frontend: Success JSON
+```
+
+---
+
+## 3. Spring Boot Magic Explained
+
+### Dependency Injection (DI) & Inversion of Control (IoC)
+*   **Concept**: Instead of manually creating objects using `new BankService()`, we let Spring Boot create and manage the objects for us.
+*   **Application**: We annotated `BankService` with `@Service` and `BankController` with `@RestController`. When the app starts, Spring creates these objects (called "Beans").
+*   **`@Autowired`**: In `BankController`, we put `@Autowired` above `BankService`. Spring magically injects the single instance of `BankService` into the controller.
+
+### Object-Relational Mapping (ORM) via Hibernate / JPA
+*   **Concept**: Writing raw SQL queries is tedious and error-prone. ORM tools map Java Classes (`Customer.java`) to MySQL Tables (`customers`), and Java fields (`email`) to MySQL columns.
+*   **`@Entity` & `@Table`**: Tells Hibernate "This class is a database table."
+*   **`@Id`**: Marks the primary key.
+*   **Foreign Keys (`@ManyToOne` & `@JoinColumn`)**: In `Account.java`, we linked it to a Customer. Hibernate automatically manages the Foreign Key relationship in MySQL.
+*   **Lazy Loading (`FetchType.LAZY`)**: We instructed Hibernate *not* to fetch the Customer details from the DB when fetching a Transaction unless explicitly asked. This saves immense memory and CPU. We paired it with `@JsonIgnore` to prevent infinite loops when converting to JSON.
+
+### The Power of `@Transactional`
+In `BankService.performTransaction()`, we update an Account's balance and insert a Transaction row. What if the server crashes right after the account balance is deducted, but *before* the transaction receipt is saved? Money would vanish!
+*   **Solution**: `@Transactional` tells Spring to treat all database operations inside the method as a single unit. If *any* part fails or throws an exception, Spring automatically rolls back the entire transaction. Either both succeed, or neither happens.
+
+---
+
+## 4. Core Java & OOP Concepts Applied
+
+### Encapsulation (OOP)
+*   **Concept**: Bundling data (variables) and methods into a single unit (class), and restricting direct access by making fields `private`.
+*   **Application**: Every field in `Customer`, `Account`, and `Transaction` is `private`. The outside world (and other classes) can only interact with them via Public Getters and Setters (generated dynamically by **Lombok's `@Data`** annotation to keep code clean).
+
+### Abstraction (OOP)
+*   **Concept**: Hiding complex background details and exposing only what is necessary.
+*   **Application**: The `JpaRepository<T, ID>` interface we extend for our Repositories is pure abstraction. We don't write any SQL or logic for `save()`, `findAll()`, or `findById()`. The implementation is hidden inside Spring Boot.
+
+### Polymorphism & Interfaces (OOP)
+*   **Concept**: Treating different objects as instances of their parent class or interface.
+*   **Application**: The `List<>` and `Map<>` objects we use are interfaces. E.g., `public List<Customer> getCustomers()` returns an `ArrayList` under the hood, but we program against the `List` interface for flexibility.
+
+### Java `enum` (Enumerations)
+*   Instead of using raw Strings like `"SAVINGS"` or `"CURRENT"` which are prone to typos, we defined `public enum AccountType { SAVINGS, CURRENT }`. This enforces strict type safety at compile-time.
+
+### `BigDecimal` (Crucial for Banking)
+*   In Core Java, using `double` or `float` for money is a massive mistake because floating-point math is imprecise (e.g., `0.1 + 0.2` might equal `0.30000000000000004`).
+*   **Application**: All balances and transaction amounts in our app use `java.math.BigDecimal`. It is slightly harder to use (`balance.add(amount)` instead of `balance + amount`), but it guarantees 100% mathematical precision.
+
+### Java `Optional<T>`
+*   When finding a database record by ID, it might not exist. Previously, this would return `null`, leading to the dreaded `NullPointerException`.
+*   **Application**: `repository.findById(id)` returns an `Optional<Account>`. This forces the developer to handle the "empty" case, which we gracefully handle using `.orElseThrow(() -> new RuntimeException(...))`.
+
+### `java.time.LocalDateTime`
+*   Replaces the outdated `java.util.Date`. We use it alongside Hibernate's `@CreationTimestamp` to automatically capture the exact nanosecond a customer or transaction was created.
