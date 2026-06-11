@@ -14,6 +14,8 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+import java.security.MessageDigest;
+import java.nio.charset.StandardCharsets;
 
 @Service
 public class BankService {
@@ -35,6 +37,23 @@ public class BankService {
         return customerRepository.findById(id).orElseThrow(() -> new RuntimeException("Customer not found"));
     }
 
+    private String hashPin(String pin) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] hash = md.digest(pin.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : hash) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1)
+                    hexString.append('0');
+                hexString.append(hex);
+            }
+            return hexString.toString();
+        } catch (Exception e) {
+            throw new RuntimeException("Error hashing PIN", e);
+        }
+    }
+
     @Transactional
     public Customer createCustomer(Customer customer) {
         if (customer.getCustomerId() == null || customer.getCustomerId().isEmpty()) {
@@ -52,21 +71,44 @@ public class BankService {
     }
 
     @Transactional
-    public Account createAccount(String customerId, Account.AccountType type, BigDecimal initialBalance, String pinHash) {
+    public Account createAccount(String customerId, Account.AccountType type, BigDecimal initialBalance,
+            String pinHash) {
         Customer customer = getCustomer(customerId);
         Account account = new Account();
         account.setAccountNumber("ACC" + UUID.randomUUID().toString().substring(0, 11).toUpperCase());
         account.setCustomer(customer);
         account.setAccountType(type);
         account.setBalance(initialBalance);
-        account.setPinHash(pinHash);
+        account.setPinHash(hashPin(pinHash));
         account.setStatus(Account.AccountStatus.ACTIVE);
-        return accountRepository.save(account);
+        Account savedAccount = accountRepository.save(account);
+
+        if (initialBalance.compareTo(BigDecimal.ZERO) > 0) {
+            Transaction transaction = new Transaction();
+            transaction.setTransactionId("TXN" + UUID.randomUUID().toString().substring(0, 17).toUpperCase());
+            transaction.setAccount(savedAccount);
+            transaction.setTransactionType(Transaction.TransactionType.DEPOSIT);
+            transaction.setAmount(initialBalance);
+            transaction.setBalanceAfter(initialBalance);
+            transaction.setDescription("Initial Deposit");
+            transactionRepository.save(transaction);
+        }
+
+        return savedAccount;
     }
 
     @Transactional
-    public Transaction performTransaction(String accountNumber, BigDecimal amount, Transaction.TransactionType type, String description) {
+    public Transaction performTransaction(String accountNumber, BigDecimal amount, Transaction.TransactionType type,
+            String description, String pin) {
         Account account = getAccount(accountNumber);
+
+        // Verify PIN
+
+        String hashedPin = hashPin(pin);
+        if (!account.getPinHash().equals(hashedPin)) {
+            throw new RuntimeException("Invalid PIN");
+        }
+
         if (type == Transaction.TransactionType.WITHDRAWAL || type == Transaction.TransactionType.TRANSFER_OUT) {
             if (account.getBalance().compareTo(amount) < 0) {
                 throw new RuntimeException("Insufficient funds");

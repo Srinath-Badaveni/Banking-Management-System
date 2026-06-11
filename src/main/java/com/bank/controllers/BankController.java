@@ -58,7 +58,8 @@ public class BankController {
         BigDecimal amount = new BigDecimal(payload.get("amount"));
         Transaction.TransactionType type = Transaction.TransactionType.valueOf(payload.get("transactionType"));
         String description = payload.get("description");
-        return bankService.performTransaction(accountNumber, amount, type, description);
+        String pin = payload.get("pin");
+        return bankService.performTransaction(accountNumber, amount, type, description, pin);
     }
 
     @GetMapping("/accounts/{accountNumber}/transactions")
